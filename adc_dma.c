@@ -43,7 +43,11 @@ void Configure_ADC(void)
         SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0); //Enable the ADC
         SysCtlDelay(2); //small delay to ensure the above steps are succenfully completed
         ADCSequenceDisable(ADC0_BASE, 1); //disable ADC0 to set the configuration parameters
-        ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0); // configure the ADC0 to use SS3
+
+        // configure the ADC0 to use SS3 and be triggered by using timer
+        // the timer trigger is configured using TimerControlTrigger()
+
+        ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_TIMER, 0);
         ADCSequenceStepConfigure(ADC0_BASE,3,0,ADC_CTL_TS|ADC_CTL_IE|ADC_CTL_END); // Configuring the step of SS3
         IntPrioritySet(INT_ADC0SS3, 0x00);       // configure ADC0 SS3 interrupt priority as 0
         IntEnable(INT_ADC0SS3);                 // enabling the interrupt for the adc sequencer This is used for adc triggering
@@ -305,32 +309,18 @@ void ConfigureTimer(void){
     // this function configures the timers
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0); // Enable Timer 0
     TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);// Configure Timer 0 to Periodic Mode
-    ui32Period = (SysCtlClockGet()/3/100 ) ; // this is for 100 hertz
+    ui32Period = (SysCtlClockGet()/100 ) ; // this is for 100 hertz
     TimerLoadSet(TIMER0_BASE, TIMER_A, ui32Period -1); // the -1 because the interrupt fires at 0
-    IntEnable(INT_TIMER0A);
-    TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);  // enabling the timer interrupt
+    TimerControlTrigger(TIMER0_BASE, TIMER_A, 1);
+    //IntEnable(INT_TIMER0A);  // we no longer need this interrupt bacause we are not using the interrupt handler to trigger the adc
+    //TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);  // enabling the timer interrupt
     IntMasterEnable(); // enable interrupts globally
     TimerEnable(TIMER0_BASE, TIMER_A); // now that the configuration is all done enable the timer.
-}
 
-
-void Timer0IntHandler(void)
-{
-    static int count = 0;
-    // Clear the timer interrupt
-    TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
-    count++;
-
-
-    // using sequencer 3
-    ADCIntClear(ADC0_BASE, 3);
-
-    ADCProcessorTrigger(ADC0_BASE, 3);
-
-}
 
 
 
+}
 
 
 int main(void)
