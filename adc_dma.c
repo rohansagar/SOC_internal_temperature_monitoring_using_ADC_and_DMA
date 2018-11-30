@@ -10,6 +10,7 @@
 #include "driverlib/udma.h"
 #include "inc/tm4c123gh6pm.h"
 #include "driverlib/timer.h"
+#include "driverlib/gpio.h"
 
 short buffer_pointer = 3 ; // we initialize the first two buffers so the first pointer is for 3
 
@@ -34,6 +35,17 @@ static uint32_t buffer_1_count = 0;
 static uint32_t buffer_2_count = 0;
 static uint32_t buffer_3_count = 0;
 
+
+void Configure_GPIO(void){
+    // This function configures the on board leds as output so that they can be used as outputs.
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+        while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOF))
+        {
+        }
+    GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_3|GPIO_PIN_2|GPIO_PIN_1);
+
+
+}
 
 // Configuring the ADC
 void Configure_ADC(void)
@@ -171,17 +183,15 @@ void adc0_ss3_handler(void)
         // the main thread has to process the data in the buffer before it is
         // reused.
         //
-       if(buffer_pointer  == 3)
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, GPIO_PIN_1);
+
+        if(buffer_pointer  == 3)
        {
 
-        uDMAChannelTransferSet(UDMA_CHANNEL_ADC3 | UDMA_PRI_SELECT,
-                               UDMA_MODE_PINGPONG,
-                               (void *)(ADC0_BASE + ADC_O_SSFIFO3),
-                               buffer_3, ADC_BUF_SIZE);
-                //Re-enable the uDMA channel
-                uDMAChannelEnable(UDMA_CHANNEL_ADC3);
-                buffer_3_count++;
-                buffer_pointer = 1;
+           uDMAChannelTransferSet(UDMA_CHANNEL_ADC3 | UDMA_PRI_SELECT, UDMA_MODE_PINGPONG, (void *)(ADC0_BASE + ADC_O_SSFIFO3),buffer_3, ADC_BUF_SIZE);
+           uDMAChannelEnable(UDMA_CHANNEL_ADC3); //Re-enable the uDMA channel
+           buffer_3_count++;
+           buffer_pointer = 1;
        }
 
 
@@ -245,6 +255,7 @@ void adc0_ss3_handler(void)
         // the main thread has to process the data in the buffer before it is
         // reused.
         //
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0);
 
         if(buffer_pointer == 1)
         {
@@ -312,8 +323,6 @@ void ConfigureTimer(void){
     ui32Period = (SysCtlClockGet()/100 ) ; // this is for 100 hertz
     TimerLoadSet(TIMER0_BASE, TIMER_A, ui32Period -1); // the -1 because the interrupt fires at 0
     TimerControlTrigger(TIMER0_BASE, TIMER_A, 1);
-    //IntEnable(INT_TIMER0A);  // we no longer need this interrupt bacause we are not using the interrupt handler to trigger the adc
-    //TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);  // enabling the timer interrupt
     IntMasterEnable(); // enable interrupts globally
     TimerEnable(TIMER0_BASE, TIMER_A); // now that the configuration is all done enable the timer.
 
@@ -325,15 +334,15 @@ void ConfigureTimer(void){
 
 int main(void)
 {
+        Configure_GPIO();
         Configure_DMA();
         Configure_ADC();
         IntMasterEnable();              // globally enable interrupt
-        //ADCProcessorTrigger(ADC0_BASE, 1);
         ConfigureTimer();
 
         while(1)
-        {
-            if(buffer_1_count - old_1_count > 0 ){
+        {}
+/*            if(buffer_1_count - old_1_count > 0 ){
                 // this indecates that buffer a has just been incremented
                 SysCtlDelay(SysCtlClockGet()/4/3); // quarter second delay
                 //    ui32TempValueC = (1475 - ((2475 * buffer_1[0])) / 4096)/10;
@@ -364,5 +373,10 @@ int main(void)
 
 
             }
-        }
+        */
+
+
+
+
+
 }

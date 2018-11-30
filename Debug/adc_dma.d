@@ -19,6 +19,7 @@ adc_dma.obj: /Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/interrupt.h
 adc_dma.obj: /Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/udma.h
 adc_dma.obj: /Users/rohan/ti/tivaware_c_series_2_1_4_178/inc/tm4c123gh6pm.h
 adc_dma.obj: /Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/timer.h
+adc_dma.obj: /Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/gpio.h
 
 ../adc_dma.c: 
 /Applications/ti/ccsv8/tools/compiler/ti-cgt-arm_18.1.1.LTS/include/stdint.h: 
@@ -39,3 +40,4 @@ adc_dma.obj: /Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/timer.h
 /Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/udma.h: 
 /Users/rohan/ti/tivaware_c_series_2_1_4_178/inc/tm4c123gh6pm.h: 
 /Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/timer.h: 
+/Users/rohan/ti/tivaware_c_series_2_1_4_178/driverlib/gpio.h: 
