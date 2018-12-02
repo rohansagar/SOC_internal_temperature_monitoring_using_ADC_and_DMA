@@ -26,12 +26,13 @@ struct _buffer{
     };
 
 static buffer_pointer current_buffer_pointer;
-
+static buffer_pointer buffer_2_pointer;
 // Variables needed for the ADC conversion
 uint32_t raw_adc[1];
 volatile uint32_t ui32TempValueC;
 volatile uint32_t ui32TempValueF;
 
+// Aligning the control structures.
 #pragma DATA_ALIGN(ControlTable, 1024)
 uint8_t ControlTable[1024];
 
@@ -39,9 +40,9 @@ uint8_t ControlTable[1024];
 
 
 void Configure_GPIO(void){
-    // This function configures the on board leds as output so that they can be used as outputs.
+    // This function configures the on board LEDs as output so that they can be used as outputs.
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
-        while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOF))
+        while(!SysCtlPeripheralReady(SYSCTL_PERIPH_GPIOF)) // wait for the peripheral to be enabled
         {
         }
     GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_3|GPIO_PIN_2|GPIO_PIN_1);
@@ -64,6 +65,9 @@ void Configure_ADC(void)
         ADCSequenceEnable(ADC0_BASE, 3);    // enabling the sequence
 }
 
+
+
+
 //Configure DMA
 void Configure_DMA(void)
 {
@@ -73,36 +77,32 @@ void Configure_DMA(void)
     uDMAChannelAttributeDisable(UDMA_CHANNEL_ADC3, UDMA_ATTR_ALTSELECT | UDMA_ATTR_HIGH_PRIORITY | UDMA_ATTR_REQMASK);
     uDMAChannelAttributeEnable(UDMA_CHANNEL_ADC3, UDMA_ATTR_USEBURST);    //Set USEBURST: configure the uDMA controller to respond to burst requests only
     uDMAChannelControlSet(UDMA_CHANNEL_ADC3 | UDMA_PRI_SELECT, UDMA_SIZE_32 | UDMA_SRC_INC_NONE | UDMA_DST_INC_32 |UDMA_ARB_1); //Configuring the control parameters of the primary control structure
-    uDMAChannelControlSet(UDMA_CHANNEL_ADC3 | UDMA_ALT_SELECT,UDMA_SIZE_32 | UDMA_SRC_INC_NONE | UDMA_DST_INC_32 |UDMA_ARB_2);//     Configure the control parameters for the alternate control structure for
+    uDMAChannelControlSet(UDMA_CHANNEL_ADC3 | UDMA_ALT_SELECT,UDMA_SIZE_32 | UDMA_SRC_INC_NONE | UDMA_DST_INC_32 |UDMA_ARB_1);//     Configure the control parameters for the alternate control structure for
 
     uDMAChannelTransferSet(UDMA_CHANNEL_ADC3 | UDMA_PRI_SELECT,UDMA_MODE_PINGPONG,(void *)(ADC0_BASE + ADC_O_SSFIFO3),current_buffer_pointer -> data_array, ADC_BUF_SIZE); // setting up initial buffers to transfer primary control structure
     current_buffer_pointer -> count ++; // increment the count variable
     current_buffer_pointer = current_buffer_pointer->next; // circular linked list pointer setup
 
-    /* Set up the transfer parameters for the ADC0 SS3 alternate control
-    structure.  The mode is set to ping-pong, the transfer source is the
-    ADC0 SS3 FIFO result register, and the destination is the receive "2" buffer.  The
-    transfer size is set to match the size of the buffer.
-    */
+    // Set up the transfer parameters for the ADC0 SS3 alternate control structure.  The mode is set to ping-pong, the transfer source is the ADC0 SS3 FIFO result register
     uDMAChannelTransferSet(UDMA_CHANNEL_ADC3 | UDMA_ALT_SELECT,UDMA_MODE_PINGPONG, (void *)(ADC0_BASE + ADC_O_SSFIFO3),current_buffer_pointer->data_array, ADC_BUF_SIZE);// setting up initial buffers to transfer secondary control structure
     current_buffer_pointer -> count ++;// increment the count variable
     current_buffer_pointer = current_buffer_pointer->next;  // circular linked list pointer setup
     uDMAChannelEnable(UDMA_CHANNEL_ADC3);// Enable the uDMA channel
 }
 
-//*****************************************************************************
-// The interrupt handler for ADC0 SS3.  This interrupt will occur when a DMA
-// transfer is complete using the ADC0 SS3 uDMA channel.
-//*****************************************************************************
+
+
+
+// The interrupt handler for ADC0 SS3.  This interrupt will occur when a DMA transfer is complete using the ADC0 SS3 uDMA channel.
+
 void adc0_ss3_handler(void)
 {
     uint32_t ui32Mode;
-
     ui32Mode = uDMAChannelModeGet(UDMA_CHANNEL_ADC3 | UDMA_PRI_SELECT);
     // when the primary buffer is full
     if(ui32Mode == UDMA_MODE_STOP)
     {
-        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, GPIO_PIN_1);
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1,  ~GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_1));
         uDMAChannelTransferSet(UDMA_CHANNEL_ADC3 | UDMA_PRI_SELECT, UDMA_MODE_PINGPONG, (void *)(ADC0_BASE + ADC_O_SSFIFO3),current_buffer_pointer->data_array, ADC_BUF_SIZE);
         uDMAChannelEnable(UDMA_CHANNEL_ADC3); //Re-enable the uDMA channel
         current_buffer_pointer -> count ++; //increment the buffer count
@@ -113,20 +113,28 @@ void adc0_ss3_handler(void)
     // when the alternate structure is full
     if(ui32Mode == UDMA_MODE_STOP)
     {
-        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1, 0);
+        GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, ~GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_2));
         uDMAChannelTransferSet(UDMA_CHANNEL_ADC3 | UDMA_ALT_SELECT,UDMA_MODE_PINGPONG,(void *)(ADC0_BASE + ADC_O_SSFIFO3), current_buffer_pointer->data_array, ADC_BUF_SIZE);
         uDMAChannelEnable(UDMA_CHANNEL_ADC3);//Re-enable the uDMA channel
         current_buffer_pointer -> count ++; //increment the buffer count
         current_buffer_pointer = current_buffer_pointer->next; // rotate the circular buffer
     }
 
+    if(buffer_2_pointer->count == 0){
+        return;
+    }
+
+    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3, ~GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_3)); // GPIO toggle for debugging
+    //SysCtlDelay(SysCtlClockGet()/10); // feasible processing delay
+    SysCtlDelay( SysCtlClockGet()/3);// infeasible processor delay
+    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_3, ~GPIOPinRead(GPIO_PORTF_BASE, GPIO_PIN_3));  // GPIO toggle for debugging
+
 }
 
 
 
-/*
- In this project we use timer to trigger the ADC in such a way that the sampling frequency is 100 hz
- */
+//In this project we use timer to trigger the ADC in such a way that the sampling frequency is 100 hz
+
 void ConfigureTimer(void){
     // this function configures the timers
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0); // Enable Timer 0
@@ -141,55 +149,29 @@ void ConfigureTimer(void){
 
 int main(void)
 {
-        Configure_GPIO();   // configure the GPIOs
-        Configure_DMA();    // Configure DMA
-        Configure_ADC();    // Configure ADC
-        IntMasterEnable();  // globally enable interrupt
-        ConfigureTimer();   // Configure Timer
+    static buffer buffer_1, buffer_2, buffer_3; //instantiate buffers to store data
 
-        static buffer buffer_1, buffer_2, buffer_3;
-        // circular buffer structute.
-        buffer_1.next = &buffer_2;
-        buffer_2.next = &buffer_3;
-        buffer_3.next = &buffer_1;
-        current_buffer_pointer = &(buffer_1);
-        while(1)
-        {}
-/*            if(buffer_1_count - old_1_count > 0 ){
-                // this indecates that buffer a has just been incremented
-                SysCtlDelay(SysCtlClockGet()/4/3); // quarter second delay
-                //    ui32TempValueC = (1475 - ((2475 * buffer_1[0])) / 4096)/10;
-                //    ui32TempValueF = ((ui32TempValueC * 9) + 160) / 5;
-
-                old_1_count = buffer_1_count;
+    // circular buffer setup.
+    buffer_1.next = &buffer_2;
+    buffer_2.next = &buffer_3;
+    buffer_3.next = &buffer_1;
+    buffer_1.count = 0;
+    buffer_2.count = 0;
+    buffer_3.count = 0;
+    current_buffer_pointer = &(buffer_1); // setting the first buffer to buffer_1
+    buffer_2_pointer = &(buffer_2); // this pointer is used to check the buffer_2 count so that initially we can wait until the first window is full.
 
 
-            }
-
-            else if(buffer_2_count - old_2_count > 0){
-                // this indecates that b has just been triggered
-                SysCtlDelay(SysCtlClockGet()/4/3); // quarter second delay
-                 //   ui32TempValueC = (1475 - ((2475 * buffer_2[0])) / 4096)/10;
-                 //   ui32TempValueF = ((ui32TempValueC * 9) + 160) / 5;
-
-                old_2_count = buffer_2_count;
-
-            }
-            else if(buffer_3_count - old_3_count > 0){
-                // this means that the bufer c has just been triggered
-                SysCtlDelay(SysCtlClockGet()/4/3); // quarter second delay
-                //ui32TempValueC = (1475 - ((2475 * buffer_2[0])) / 4096)/10;
-                //ui32TempValueF = ((ui32TempValueC * 9) + 160) / 5;
-
-                old_3_count = buffer_3_count;
+    Configure_GPIO();   // configure the GPIOs
+    Configure_DMA();    // Configure DMA
+    Configure_ADC();    // Configure ADC
+    IntMasterEnable();  // globally enable interrupt
+    ConfigureTimer();   // Configure Timer
 
 
+    while(1)
+        {
 
-            }
-        */
-
-
-
-
+        }
 
 }
