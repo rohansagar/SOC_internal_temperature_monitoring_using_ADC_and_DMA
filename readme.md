@@ -1,4 +1,4 @@
-# SOC internal temperature monitoring using ADC and DMA
+# SOC internal temperature monitoring using ADC and DMA:
 
 This project is intended to monitor the internal tempreature of the TM4C123GH6PM microcontroller from 
 Texas Instruments. It achieves tempearature monitoring in a highly efficient way by using the least
